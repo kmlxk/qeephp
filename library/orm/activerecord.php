@@ -657,6 +657,10 @@ abstract class QDB_ActiveRecord_Abstract implements QDB_ActiveRecord_Callbacks,
      */
     function __get($prop_name)
     {
+        if (! isset(self::$_meta[$this->_class_name]))
+        {
+            self::$_meta[$this->_class_name] = QDB_ActiveRecord_Meta::instance($this->_class_name);
+        }
         if (!isset(self::$_meta[$this->_class_name]->props[$prop_name]))
         {
             throw new QDB_ActiveRecord_UndefinedPropException($this->_class_name, $prop_name);

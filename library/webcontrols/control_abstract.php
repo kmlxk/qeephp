@@ -317,7 +317,7 @@ abstract class QUI_Control_Abstract
     {
         if (is_object($this->value) && !method_exists($this->value, '__toString'))
         {
-            return '';
+            return $this->value;
         }
         return strlen($this->value)
             ? 'value="' . htmlspecialchars($this->value) . '" '

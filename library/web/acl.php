@@ -124,9 +124,13 @@ class QACL
             {
                 // 如果 allow 要求用户具有特定角色，则进行检查
                 $passed = false;
+				if (!is_array($acl['allow']))
+					$allow_array = explode(',', $acl['allow']);
+				else
+					$allow_array = $acl['allow'];
                 foreach ($roles as $role)
                 {
-                    if (in_array($role, $acl['allow']))
+                    if (in_array($role, $allow_array))
                     {
                         $passed = true;
                         break;
