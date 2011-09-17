@@ -1,5 +1,5 @@
 <?php
-// $Id: xcache.php 2289 2009-03-06 06:05:31Z dualface $
+// $Id: xcache.php 2560 2009-06-17 16:41:35Z dualface $
 
 /**
  * 定义 QCache_XCache 类
@@ -7,7 +7,7 @@
  * @link http://qeephp.com/
  * @copyright Copyright (c) 2006-2009 Qeeyuan Inc. {@link http://www.qeeyuan.com}
  * @license New BSD License {@link http://qeephp.com/license/}
- * @version $Id: xcache.php 2289 2009-03-06 06:05:31Z dualface $
+ * @version $Id: xcache.php 2560 2009-06-17 16:41:35Z dualface $
  * @package cache
  */
 
@@ -15,7 +15,7 @@
  * QCache_XCache 类使用 XCache 扩展来缓存数据
  *
  * @author YuLei Liao <liaoyulei@qeeyuan.com>
- * @version $Id: xcache.php 2289 2009-03-06 06:05:31Z dualface $
+ * @version $Id: xcache.php 2560 2009-06-17 16:41:35Z dualface $
  * @package cache
  */
 class QCache_XCache
@@ -59,7 +59,7 @@ class QCache_XCache
         $life_time = isset($policy['life_time'])
                      ? (int)$policy['life_time']
                      : $this->_default_policy['life_time'];
-        xcache_set($id, $data, $life_time);
+        xcache_set($id, serialize($data), $life_time);
 	}
 
 	/**
@@ -73,7 +73,7 @@ class QCache_XCache
     {
         if (xcache_isset($id))
         {
-            return xcache_get($id);
+            return unserialize(xcache_get($id));
         }
         return false;
 	}
