@@ -36,7 +36,7 @@ $(document).ready(function() {
         <tbody>
           <?php foreach ($controllers as $controller): ?>
           <tr>
-            <td><?php echo h($controller->namespace() ? $controller->namespace() . '::' : '-'); ?></td>
+            <td><?php echo h($controller->get_namespace() ? $controller->namespace() . '::' : '-'); ?></td>
             <th><?php echo h($controller->controllerName()); ?></th>
             <td><?php echo h($controller->moduleName() != QReflection_Application::DEFAULT_MODULE_NAME ? '@' . $controller->moduleName() : '-'); ?></td>
             <td><?php echo h($controller->className()); ?></td>

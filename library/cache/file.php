@@ -179,7 +179,7 @@ class QCache_File
 
 		$len = filesize($path);
 		$mqr = get_magic_quotes_runtime();
-		set_magic_quotes_runtime(0);
+		ini_set("magic_quotes_runtime",0);
 
 		// 头部的 32 个字节存储了该缓存的策略
 		$head = fread($fp, self::$_head_len);
@@ -219,7 +219,7 @@ class QCache_File
             {
 				$data = false;
 			}
-			set_magic_quotes_runtime($mqr);
+			ini_set("magic_quotes_runtime",$mqr);
 		} while (false);
 
 		flock($fp, LOCK_UN);

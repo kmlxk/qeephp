@@ -152,7 +152,7 @@ class QReflection_Controller
      *
      * @return string
      */
-    function namespace()
+    function get_namespace()
     {
         return $this->_namespace;
     }
