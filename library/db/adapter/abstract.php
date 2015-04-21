@@ -534,6 +534,9 @@ abstract class QDB_Adapter_Abstract
             for ($offset = 1; $offset < $max; $offset += 2)
             {
                 $arg_name = substr($parts[$offset], 1);
+                if (isset($params[0])) {
+                    $params = $params[0];
+                }
                 if (! isset($params[$arg_name]))
                 {
                     throw new QDB_Exception($sql, __('Invalid parameter "%s" for "%s"', $arg_name, $sql), 0);

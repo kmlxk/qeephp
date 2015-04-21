@@ -68,6 +68,11 @@ abstract class Helper_Image
         return new Helper_ImageGD($handle);
     }
 
+	static function getSize($filename)
+	{
+		return getimagesize($filename);
+	}
+
 	/**
 	 * 将 16 进制颜色值转换为 rgb 值
      *

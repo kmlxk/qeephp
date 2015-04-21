@@ -95,6 +95,12 @@ class Model_Behavior_AclUser extends QDB_ActiveRecord_Behavior_Abstract
         'update_login_at_prop'      => null,
         'update_login_ip_prop'      => null,
 
+        'update_prev_login_at_prop' => null,
+        'update_prev_login_ip_prop' => null,
+		'continue_login_count_prop' => null,
+
+        'update_prev_login_ip_prop' => null,
+
         'register_save_auto'        => false,
         'register_ip_prop'          => null,
         'register_at_prop'          => null,
@@ -359,9 +365,31 @@ class Model_Behavior_AclUser extends QDB_ActiveRecord_Behavior_Abstract
         {
             $member->changePropForce($pn, $member[$pn] + 1);
         }
+
+
         $pn = $this->_settings['update_login_at_prop'];
         if ($pn)
         {
+			// previous login
+			$pv = $this->_settings['update_prev_login_at_prop'];
+			if ($pv)
+			{
+				$member->changePropForce($pv, $member[$pn]);
+			}
+			// continue login count
+			$pc = $this->_settings['continue_login_count_prop'];
+			if ($pc)
+			{
+				$pd = intval($member[$pv] / 86400) * 86400;
+				$cd = intval(CURRENT_TIMESTAMP / 86400) * 86400;
+				if (($cd - $pd) / 86400 == 1)
+				{
+					$member->changePropForce($pc, $member[$pc] + 1);
+				} else {
+					$member->changePropForce($pc, 0);
+				}
+			}
+			// current login
             $time = isset($data['login_at']) ? $data['login_at'] : CURRENT_TIMESTAMP;
             if (substr($this->_meta->props[$pn]['ptype'], 0, 3) != 'int')
             {
@@ -372,6 +400,12 @@ class Model_Behavior_AclUser extends QDB_ActiveRecord_Behavior_Abstract
         $pn = $this->_settings['update_login_ip_prop'];
         if ($pn)
         {
+			// previous login
+			$pv = $this->_settings['update_prev_login_ip_prop'];
+			if ($pv)
+			{
+				$member->changePropForce($pv, $member[$pn]);
+			}
             $ip = isset($data['login_at']) ?
                   $data['login_at']
                   : isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : '';

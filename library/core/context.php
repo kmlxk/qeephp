@@ -41,13 +41,13 @@ class QContext implements ArrayAccess
     // UDI 中的所有部分
     const UDI_ALL        = 'all';
     // UDI 中的控制器
-    const UDI_CONTROLLER = 'controller';
+    const UDI_CONTROLLER = 'c';
     // UDI 中的动作
-    const UDI_ACTION     = 'action';
+    const UDI_ACTION     = 'a';
     // UDI 中的名字空间
-    const UDI_NAMESPACE  = 'namespace';
+    const UDI_NAMESPACE  = 'n';
     // UDI 中的模块
-    const UDI_MODULE     = 'module';
+    const UDI_MODULE     = 'm';
 
     /**
      * 指示 UDI 的默认值
