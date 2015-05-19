@@ -37,7 +37,7 @@ class MyApp {
          * 初始化运行环境
          */
         // 禁止 magic quotes
-        set_magic_quotes_runtime(0);
+        ini_set("magic_quotes_runtime", 0);
 
         // 处理被 magic quotes 自动转义过的数据
         if (get_magic_quotes_gpc()) {
@@ -134,6 +134,24 @@ class MyApp {
         return $this->_app_config;
     }
 
+    public static function applyRParameter($udi) {
+        if (!isset($_GET['r'])) {
+            return $udi;
+        }
+        $sep = explode('/', $_GET['r']);
+        if (count($sep) == 1) {
+            $udi[QContext::UDI_CONTROLLER] = $sep[0];
+        } else if (count($sep) == 2) {
+            $udi[QContext::UDI_CONTROLLER] = $sep[0];
+            $udi[QContext::UDI_ACTION] = $sep[1];
+        } else if (count($sep) == 3) {
+            $udi[QContext::UDI_NAMESPACE] = $sep[0];
+            $udi[QContext::UDI_CONTROLLER] = $sep[1];
+            $udi[QContext::UDI_ACTION] = $sep[2];
+        }
+        return $udi;
+    }
+
     /**
      * 根据运行时上下文对象，调用相应的控制器动作方法
      *
@@ -147,6 +165,8 @@ class MyApp {
 
         // 获得请求对应的 UDI（统一目的地信息）
         $udi = $context->requestUDI('array');
+        $udi = self::applyRParameter($udi);
+        $context->changeRequestUDI($udi);
         #IFDEF DEBUG
         QLog::log('REQUEST UDI: ' . $context->UDIString($udi), QLog::DEBUG);
         #ENDIF
