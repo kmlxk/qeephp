@@ -1706,7 +1706,6 @@ class QDB_Select
         $class_name = $this->_meta->class_name;
         $rowset = array();
         $this->_query_params[self::USED_LINKS] = $this->_query_params[self::USED_LINKS];
-
         $no_lazy_query = Q::normalize($this->_query_params[self::NON_LAZY_QUERY]);
         while (($row = $handle->fetchRow()))
         {

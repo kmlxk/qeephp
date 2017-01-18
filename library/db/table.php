@@ -331,6 +331,9 @@ class QDB_Table
         {
             $this->_setupConn();
         }
+        if (is_callable(array($this->_conn,'getFullTableName'))) {
+            return $this->_conn->getFullTableName("{$this->prefix}{$this->name}");
+        }
         return (! empty($this->schema) ? "`{$this->schema}`." : '')
             . "`{$this->prefix}{$this->name}`";
     }
