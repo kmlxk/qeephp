@@ -23,7 +23,8 @@ class QDB_Adapter_Oracle extends QDB_Adapter_Abstract {
 
     protected $_bind_enabled = false;
     protected $_lastrs = NULL;
-
+    protected $_result_field_name_lower = true;
+    
     function __construct($dsn, $id) {
         if (!is_array($dsn)) {
             $dsn = QDB::parseDSN($dsn);
@@ -53,7 +54,7 @@ class QDB_Adapter_Oracle extends QDB_Adapter_Abstract {
         if (!isset($this->_dsn['password'])) {
             $this->_dsn['password'] = '';
         }
-        
+
         if (isset($this->_dsn['charset']) && $this->_dsn['charset'] != '') {
             $charset = $this->_dsn['charset'];
             if (strtolower($charset) == 'utf8') {
@@ -63,6 +64,10 @@ class QDB_Adapter_Oracle extends QDB_Adapter_Abstract {
         $this->_conn = oci_connect($this->_dsn['login'], $this->_dsn['password'], '//' . $host . '/' . $this->_dsn['database'], $charset);
         if (!is_resource($this->_conn)) {
             throw new QDB_Exception('CONNECT DATABASE', print_r(oci_error(), true));
+        }
+        // 执行一些初始化配置SQL
+        if (isset($this->_dsn['initsql'])) {
+            $this->execute($this->_dsn['initsql']);
         }
     }
 
@@ -104,7 +109,7 @@ class QDB_Adapter_Oracle extends QDB_Adapter_Abstract {
     }
 
     function identifier($name) {
-        return ($name != '*') ? "[{$name}]" : '*';
+        return ($name != '*') ? "{$name}" : '*';
     }
 
     function nextID($table_name, $field_name, $start_value = 1) {
@@ -176,7 +181,9 @@ class QDB_Adapter_Oracle extends QDB_Adapter_Abstract {
         $success = oci_execute($result);
         $this->_lastrs = $result;
         if ($success) {
-            return new QDB_Result_Oracle($result, $this->_fetch_mode);
+            $rs = new QDB_Result_Oracle($result, $this->_fetch_mode);
+            $rs->result_field_name_lower = $this->_result_field_name_lower;
+            return $rs;
         } else {
             $this->_last_err = print_r(oci_error($result), true);
             $this->_last_err_code = -1;
@@ -194,35 +201,52 @@ class QDB_Adapter_Oracle extends QDB_Adapter_Abstract {
      * 各数据库驱动分页查询差别较大，需要单独实施
      *      */
     function selectLimit($sql, $offset = 0, $length = 30, array $inputarr = null) {
-        if (!is_null($offset)) {
-            $end = $offset + $length - 1;
-            // SQL Server中的分页查询比较麻烦，2005版本以上通过ROW_NUMBER()可以较高性能实现。
-            $matches = null;
-            // 正则找出原有SQL中的表名称、排序字段等信息
-            $inline_sql = str_replace(array("\n", "\r"), array('', ''), $sql);
-            preg_match_all('/from\s+\[(\w+)\]/i', $inline_sql, $matches);
-            $tablename = $matches[1][0];
-            // 如果有排序字段则直接让ROW_NUMBER()按照排序字段排序
-            $fieldname = "SELECT top 1 Name FROM SysColumns WHERE id=Object_Id('{$tablename}')";
-            // 如果没有排序字段则使用原有SQL中的排序字段
-            $matchOrderBy = null;
-            preg_match_all('/order\s+by\s+\[(\w+)\]/i', $inline_sql, $matchOrderBy);
-            if (count($matches[1]) > 0) {
-                $orderBy = $matchOrderBy[1][0];
-                $fieldname = $orderBy;
-            }
-            // 使用ROW_NUMBER()分页时内部SQL不能使用order by 
-            $inline_sql = preg_replace('/order\s+by\s+.*?\s+(asc|desc)/i', '', $inline_sql);
-            $sql = "
-SELECT *  FROM ( 
-    SELECT *,ROW_NUMBER() OVER (
-        ORDER BY ( {$fieldname} )
-    ) as rank from ({$inline_sql}) as t1
-) as t 
-where t.rank between {$offset} and {$end}";
-        } elseif (!is_null($length)) {
-            $sql = "SELECT TOP {$length} * FROM ( {$sql} ) as t1";
+        if (is_null($offset)) {
+            $offset = 0;
         }
+        $end = $offset + $length;
+        // SQL Server中的分页查询比较麻烦，2005版本以上通过ROW_NUMBER()可以较高性能实现。
+        $inline_sql = str_replace(array("\n", "\r"), array('', ''), $sql);
+        // 正则找出原有SQL中的表名称、排序字段等信息
+        $matchTablename = null;
+        preg_match_all('/from[\s]+\[([\w]+)\]/i', $inline_sql, $matchTablename);
+        $tablename = $matchTablename[1][0];
+        // 如果没有排序字段则使用原有SQL中的排序字段
+        $matchOrderBy = null;
+        preg_match_all('/order\s+by\s+([\w,])+\s{0,1}(asc|desc){0,1}/i', $inline_sql, $matchOrderBy);
+        $orderBy = '';
+        if (count($matchOrderBy[1]) > 0) {
+            $orderBy = $matchOrderBy[1][0] . isset($matchOrderBy[2][0]) ? $matchOrderBy[2][0] : '';
+        } else {
+            $sqlGetPkColumnName = "select ucc.column_name from user_cons_columns ucc where ucc.constraint_name = (select con.constraint_name from  user_constraints con where con.table_name = '%s' and con.constraint_type = 'P')";
+            $orderby = $this->execute(sprintf($sqlGetPkColumnName, $tablename))->fetchCol();
+            $orderby = 'order by ' . $orderby[0];
+        }
+        // 获取条件
+        $matchWhere = null;
+        $where = '';
+        preg_match_all('/where\s+(.*)(order by){0,1}\s{0,1}(group by){0,1}/i', $inline_sql, $matchWhere);
+        if (count($matchWhere[1]) == 0) {
+            preg_match_all('/where\s+(.*)$/i', $inline_sql, $matchWhere);
+        }
+        if (count($matchWhere[1]) != 0) {
+            $where = 'where ' . $matchWhere[1][0];
+        }
+        // 如果没有排序字段则使用原有SQL中的排序字段
+        // 使用ROW_NUMBER()分页时内部SQL不能使用order by 
+        $inline_sql = preg_replace('/order\s+by\s+.*?\s+(asc|desc)/i', '', $inline_sql);
+        $sql = "
+SELECT * FROM {$tablename} 
+   WHERE ROWID IN (
+      SELECT rid FROM (
+        SELECT rid, ROWNUM AS rn FROM (
+          SELECT ROWID rid FROM {$tablename} t1 {$where}
+          {$orderby}
+        ) t1 WHERE ROWNUM<={$end}
+      ) t2 WHERE rn>={$offset}
+    ) {$orderby}
+";
+        dump($sql);
         // 执行最终拼接出的分页查询SQL
         return $this->execute($sql, $inputarr);
     }
@@ -264,8 +288,9 @@ where t.rank between {$offset} and {$end}";
 
     function metaColumns($table_name) {
         static $type_mapping = array(
-            'bit' => 'int1',
-            'tinyint' => 'int1',
+            'number' => 'int4',
+            'varchar2' => 'text',
+            'nvarchar2 ' => 'text',
             'bool' => 'bool',
             'boolean' => 'bool',
             'smallint' => 'int2',
@@ -294,7 +319,6 @@ where t.rank between {$offset} and {$end}";
             'tinytext' => 'text',
             'blob' => 'blob',
             'text' => 'text',
-            'ntext' => 'text',
             'mediumblob' => 'blob',
             'mediumtext' => 'text',
             'longblob' => 'blob',
@@ -304,22 +328,20 @@ where t.rank between {$offset} and {$end}";
         );
         $sql = sprintf("
 select
-     c.name as field,t.name + '('+ concat(COLUMNPROPERTY(c.id,c.name,'PRECISION'),')')  as type
-     ,convert(bit,c.IsNullable)  as [is_nullable]
-     ,convert(bit,case when exists(select 1 from sysobjects where xtype='PK' and parent_obj=c.id and name in (
-         select name from sysindexes where indid in(
-             select indid from sysindexkeys where id = c.id and colid=c.colid))) then 1 else 0 end) 
-                 as [is_identity]
-     ,convert(bit,COLUMNPROPERTY(c.id,c.name,'IsIdentity')) as [auto_incr]
-     ,c.Length as [storesize]
-     ,isnull(COLUMNPROPERTY(c.id,c.name,'Scale'),0) as [scale]
-     ,ISNULL(CM.text,'') as [default]
-     ,cast(isnull(ETP.value,'') as VARCHAR) AS [comment]
-from syscolumns c
-inner join systypes t on c.xusertype = t.xusertype 
-left join sys.extended_properties ETP on ETP.major_id = c.id and ETP.minor_id = c.colid and ETP.name ='MS_Description' 
-left join syscomments CM on c.cdefault=CM.id
-where c.id = object_id('%s')", $table_name);
+    lower(col.column_name) field,col.data_type,col.data_type || '(' || col.data_length || ')' type ,col.data_precision precision,
+    col.nullable is_nullable, con.constraint_type , col.data_length storesize, 
+    con.constraint_type is_identity,
+    con.constraint_name auto_incr,
+    col.data_scale scale, col.data_default defaultval ,cm.comments commentval
+from  user_tab_columns col
+left join user_col_comments cm
+on cm.table_name = col.TABLE_NAME and cm.column_name = col.COLUMN_NAME
+left join user_cons_columns ucc
+on ucc.table_name = col.TABLE_NAME and ucc.column_name = col.COLUMN_NAME
+left join user_constraints con
+on con.table_name = col.TABLE_NAME and con.constraint_name = ucc.constraint_name
+where col.table_name = '%s'
+        ", $table_name);
         $rs = $this->execute($sql);
 
         $retarr = array();
@@ -327,6 +349,7 @@ where c.id = object_id('%s')", $table_name);
         $rs->result_field_name_lower = true;
         while (($row = $rs->fetchRow())) {
             $field = array();
+            //$row['field'] = strtolower($row['field']);
             $field['name'] = $row['field'];
             $type = strtolower($row['type']);
 
@@ -351,46 +374,45 @@ where c.id = object_id('%s')", $table_name);
             }
 
             $row['is_rowguidcol'] = null;
+            $row['is_seq'] = strpos(strtolower($row['auto_incr']), 'seq') == 0;
 
-            $field['ptype'] = $type_mapping[strtolower($field['type'])];
-            $field['not_null'] = (strtolower($row['is_nullable']) != '1');
-            $field['pk'] = (strtolower($row['is_rowguidcol']) == '1' || $row['is_identity'] == '1');
-            $field['auto_incr'] = ($row['is_identity'] == '1');
+            $field['ptype'] = $type_mapping[strtolower($row['data_type'])];
+            $field['not_null'] = (strtolower($row['is_nullable']) != 'y');
+            $field['pk'] = ($row['is_identity'] == 'P');
+            $field['auto_incr'] = $row['is_seq'];
             if ($field['auto_incr']) {
                 $field['ptype'] = 'autoincr';
             }
             $field['binary'] = (strpos($type, 'blob') !== false);
             $field['unsigned'] = (strpos($type, 'unsigned') !== false);
 
-            $field['has_default'] = $field['default'] = null;
+            $field['has_default'] = ($row['defaultval'] == null || strlen($row['defaultval']) == 0 );
             if (!$field['binary']) {
-                $d = $row['default'];
+                $d = $row['defaultval'];
                 if (!is_null($d) && strtolower($d) != 'null') {
                     $field['has_default'] = true;
-                    $field['default'] = $d;
+                    $field['defaultval'] = $d;
                 }
             }
-
             if ($field['type'] == 'tinyint' && $field['length'] == 1) {
                 $field['ptype'] = 'bool';
             }
-
-            $field['desc'] = !empty($row['comment']) ? $row['comment'] : '';
-            if (!is_null($field['default'])) {
+            $field['desc'] = !empty($row['commentval']) ? $row['commentval'] : '';
+            if (!is_null($row['defaultval'])) {
                 switch ($field['ptype']) {
                     case 'int1':
                     case 'int2':
                     case 'int3':
                     case 'int4':
-                        $field['default'] = intval($field['default']);
+                        $field['defaultval'] = intval($field['defaultval']);
                         break;
                     case 'float':
                     case 'double':
                     case 'dec':
-                        $field['default'] = doubleval($field['default']);
+                        $field['defaultval'] = doubleval($field['defaultval']);
                         break;
                     case 'bool':
-                        $field['default'] = (bool) $field['default'];
+                        $field['defaultval'] = (bool) $field['defaultval'];
                 }
             }
 
@@ -400,7 +422,7 @@ where c.id = object_id('%s')", $table_name);
     }
 
     function metaTables($pattern = null, $schema = null) {
-        $sql = "SELECT Name FROM SysObjects Where XType='U' ";
+        $sql = "select table_name from user_tables";
         if ($schema != '') {
             $sql .= " FROM `{$schema}`";
         }

@@ -216,7 +216,7 @@ class QDB_Adapter_Sqlsrv extends QDB_Adapter_Abstract {
             // 如果没有排序字段则使用原有SQL中的排序字段
             $matchOrderBy = null;
             preg_match_all('/order\s+by\s+\[(\w+)\]/i', $inline_sql, $matchOrderBy);
-            if (count($matches[1]) > 0) {
+            if (count($matchOrderBy[1]) > 0) {
                 $orderBy = $matchOrderBy[1][0];
                 $fieldname = $orderBy;
             }

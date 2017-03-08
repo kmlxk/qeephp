@@ -30,14 +30,17 @@ class QDB_Result_Oracle extends QDB_Result_Abstract {
 
     function fetchRow() {
         if ($this->fetch_mode == QDB::FETCH_MODE_ASSOC) {
-            $row = oci_fetch_array($this->_handle, OCI_ASSOC);
+            $row = oci_fetch_array($this->_handle, OCI_ASSOC + OCI_RETURN_NULLS);
             if ($this->result_field_name_lower && $row) {
-                return array_change_key_case($row, CASE_LOWER);
-            } else {
-                return $row;
+                $row = array_change_key_case($row, CASE_LOWER);
             }
+            return $row;
         } else {
-            return oci_fetch_array($this->_handle);
+            $row = oci_fetch_array($this->_handle);
+            if ($this->result_field_name_lower && $row) {
+                $row = array_change_key_case($row, CASE_LOWER);
+            }
+            return $row;
         }
     }
 
