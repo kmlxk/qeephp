@@ -24,7 +24,7 @@ class QDB_Adapter_Oracle extends QDB_Adapter_Abstract {
     protected $_bind_enabled = false;
     protected $_lastrs = NULL;
     protected $_result_field_name_lower = true;
-    
+
     function __construct($dsn, $id) {
         if (!is_array($dsn)) {
             $dsn = QDB::parseDSN($dsn);
@@ -157,8 +157,20 @@ class QDB_Adapter_Oracle extends QDB_Adapter_Abstract {
     }
 
     function insertID() {
-        $data = oci_fetch_assoc($this->_conn);
-        return $data['CURRVAL'];
+        $sqlGetPkColumnName = "select ucc.column_name from user_cons_columns ucc where ucc.constraint_name = (select con.constraint_name from  user_constraints con where con.table_name = '%s' and con.constraint_type = 'P')";
+        $rsPkColumnName = $this->execute(sprintf($sqlGetPkColumnName, $this->_lastTablename))->fetchCol();
+        $pkColumnName = $rsPkColumnName[0];
+        $sql = sprintf("SELECT %s FROM %s WHERE ROWID = :rid", $pkColumnName, $this->_lastTablename);
+        $result = oci_parse($this->_conn, $sql);
+        oci_bind_by_name($result, ":rid", $this->_lastRowId, -1, OCI_B_ROWID);
+        $success = oci_execute($result);
+        if ($success) {
+            $rs = new QDB_Result_Oracle($result, $this->_fetch_mode);
+            $rs->result_field_name_lower = $this->_result_field_name_lower;
+            $rsPk = $rs->fetchCol();
+            return $rsPk[0];
+        }
+        return null;
     }
 
     function affectedRows() {
@@ -177,9 +189,26 @@ class QDB_Adapter_Oracle extends QDB_Adapter_Abstract {
         if (!$this->_conn) {
             $this->connect();
         }
+        $uppersql = strtoupper($sql);
+        $returnRowId = (strpos($uppersql, 'INSERT INTO ') === 0);
+        if ($returnRowId) {
+            $sql .= ' RETURNING ROWID INTO :rid';
+        }
         $result = oci_parse($this->_conn, $sql);
+        $rowid = null;
+        if ($returnRowId) {
+            $rowid = oci_new_descriptor($this->_conn, OCI_D_ROWID);
+            oci_bind_by_name($result, ":rid", $rowid, -1, OCI_B_ROWID);
+            $matchTablename = null;
+            preg_match_all('/insert into[\s]+([\w]+)/i', $sql, $matchTablename);
+            $tableName = $matchTablename[1][0];
+            $this->_lastTablename = $tableName;
+        }
         $success = oci_execute($result);
         $this->_lastrs = $result;
+        if ($returnRowId) {
+            $this->_lastRowId = $rowid;
+        }
         if ($success) {
             $rs = new QDB_Result_Oracle($result, $this->_fetch_mode);
             $rs->result_field_name_lower = $this->_result_field_name_lower;
@@ -209,7 +238,7 @@ class QDB_Adapter_Oracle extends QDB_Adapter_Abstract {
         $inline_sql = str_replace(array("\n", "\r"), array('', ''), $sql);
         // 正则找出原有SQL中的表名称、排序字段等信息
         $matchTablename = null;
-        preg_match_all('/from[\s]+\[([\w]+)\]/i', $inline_sql, $matchTablename);
+        preg_match_all('/from[\s]+([\w]+)/i', $inline_sql, $matchTablename);
         $tablename = $matchTablename[1][0];
         // 如果没有排序字段则使用原有SQL中的排序字段
         $matchOrderBy = null;
@@ -246,7 +275,6 @@ SELECT * FROM {$tablename}
       ) t2 WHERE rn>={$offset}
     ) {$orderby}
 ";
-        dump($sql);
         // 执行最终拼接出的分页查询SQL
         return $this->execute($sql, $inputarr);
     }
