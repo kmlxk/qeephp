@@ -38,7 +38,7 @@ class QException extends Exception
      * QException::dump($ex);
      * @endcode
      */
-    static function dump(Exception $ex)
+    static function dump($ex)
     {
         $out = "exception '" . get_class($ex) . "'";
         if ($ex->getMessage() != '')
