@@ -1421,5 +1421,9 @@ abstract class QDB_Adapter_Abstract
         $this->_insert_id = null;
         $this->_trans_count = 0;
     }
+    
+    public function renderAs($alias) {
+        return (strlen($alias) > 0 ?  ' AS ' . $alias : '');
+    }
 }
 
