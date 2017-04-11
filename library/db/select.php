@@ -1813,6 +1813,12 @@ class QDB_Select
                 {
                     $col = $this->_columns_mapping[$col];
                 }
+                // 如果 $col中包含了函数调用等特殊符号，则不进行全限定名、转义操作
+                if (preg_match('/[\[\]()]/i', $col, $m))
+                {
+                    $columns[] = $col . $this->_conn->renderAs($alias);
+                    continue;
+                }
                 $col = $this->_conn->qid("{$table_name}.{$col}");
                 if ($col != self::SQL_WILDCARD && $alias)
                 {
