@@ -243,7 +243,7 @@ class QDB_Adapter_Oracle extends QDB_Adapter_Abstract {
         // 如果没有排序字段则使用原有SQL中的排序字段
         $matchOrderBy = null;
         preg_match_all('/order\s+by\s+([\w,])+\s{0,1}(asc|desc){0,1}/i', $inline_sql, $matchOrderBy);
-        $orderBy = '';
+        $orderby = '';
         if (count($matchOrderBy[1]) > 0) {
             $orderBy = $matchOrderBy[1][0] . isset($matchOrderBy[2][0]) ? $matchOrderBy[2][0] : '';
         } else {
@@ -318,7 +318,7 @@ SELECT * FROM {$tablename}
         static $type_mapping = array(
             'number' => 'int4',
             'varchar2' => 'text',
-            'nvarchar2 ' => 'text',
+            'nvarchar2' => 'text',
             'bool' => 'bool',
             'boolean' => 'bool',
             'smallint' => 'int2',
@@ -376,9 +376,12 @@ where col.table_name = '%s'
         $rs->fetch_mode = QDB::FETCH_MODE_ASSOC;
         $rs->result_field_name_lower = true;
         while (($row = $rs->fetchRow())) {
+            
             $field = array();
             //$row['field'] = strtolower($row['field']);
             $field['name'] = $row['field'];
+            $row['default'] = $row['defaultval'];
+            $field['default'] = $row['defaultval'];
             $type = strtolower($row['type']);
 
             $field['scale'] = null;
@@ -414,33 +417,33 @@ where col.table_name = '%s'
             $field['binary'] = (strpos($type, 'blob') !== false);
             $field['unsigned'] = (strpos($type, 'unsigned') !== false);
 
-            $field['has_default'] = ($row['defaultval'] == null || strlen($row['defaultval']) == 0 );
+            $field['has_default'] = ($row['default'] == null || strlen($row['default']) == 0 );
             if (!$field['binary']) {
-                $d = $row['defaultval'];
+                $d = $row['default'];
                 if (!is_null($d) && strtolower($d) != 'null') {
                     $field['has_default'] = true;
-                    $field['defaultval'] = $d;
+                    $field['default'] = $d;
                 }
             }
             if ($field['type'] == 'tinyint' && $field['length'] == 1) {
                 $field['ptype'] = 'bool';
             }
             $field['desc'] = !empty($row['commentval']) ? $row['commentval'] : '';
-            if (!is_null($row['defaultval'])) {
+            if (!is_null($row['default'])) {
                 switch ($field['ptype']) {
                     case 'int1':
                     case 'int2':
                     case 'int3':
                     case 'int4':
-                        $field['defaultval'] = intval($field['defaultval']);
+                        $field['default'] = intval($field['default']);
                         break;
                     case 'float':
                     case 'double':
                     case 'dec':
-                        $field['defaultval'] = doubleval($field['defaultval']);
+                        $field['default'] = doubleval($field['default']);
                         break;
                     case 'bool':
-                        $field['defaultval'] = (bool) $field['defaultval'];
+                        $field['default'] = (bool) $field['default'];
                 }
             }
 
