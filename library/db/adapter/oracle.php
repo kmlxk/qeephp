@@ -337,10 +337,10 @@ SELECT * FROM {$tablename}
             'timestamp' => 'timestamp',
             'time' => 'time',
             'year' => 'int2',
-            'char' => 'char',
-            'nchar' => 'char',
-            'varchar' => 'varchar',
-            'nvarchar' => 'varchar',
+            'char' => 'text',
+            'nchar' => 'text',
+            'varchar' => 'text',
+            'nvarchar' => 'text',
             'binary' => 'binary',
             'varbinary' => 'varbinary',
             'tinyblob' => 'blob',
@@ -376,12 +376,12 @@ where col.table_name = '%s'
         $rs->fetch_mode = QDB::FETCH_MODE_ASSOC;
         $rs->result_field_name_lower = true;
         while (($row = $rs->fetchRow())) {
-            
+
             $field = array();
             //$row['field'] = strtolower($row['field']);
             $field['name'] = $row['field'];
-            $row['default'] = $row['defaultval'];
-            $field['default'] = $row['defaultval'];
+            $row['default'] = trim($row['defaultval']);
+            $field['default'] = trim($row['defaultval']);
             $type = strtolower($row['type']);
 
             $field['scale'] = null;
@@ -404,10 +404,21 @@ where col.table_name = '%s'
                 $field['length'] = - 1;
             }
 
-            $row['is_rowguidcol'] = null;
-            $row['is_seq'] = strpos(strtolower($row['auto_incr']), 'seq') == 0;
+            $field['is_rowguidcol'] = strtoupper($row['default']) == 'SYS_GUID()';
+            $row['is_seq'] = (strpos(strtolower($row['auto_incr']), 'seq') === 0);
+            if ($field['is_rowguidcol']) {
+                // 如果是自动GUID字段，也配置成自增模式。
+                // 虽然字面含义不符合，但是qeephp的table.php中insert()记录时，自增模式会从数据库中查询最近插入ID。
+                // 否则将创建单列单行的空表记录ID
+                $row['is_seq'] = true;
+                // 对于Oracle支持的SYS_GUID()、SYSDATE等表达式，也许可以用array扩展方式，但是将需要修改table.php:213之类的地方
+                // 为避免修改太多，在后面忽略此类表达式默认值
+//                $row['default'] = array('exp'=>'SYS_GUID()');
+            }
 
             $field['ptype'] = $type_mapping[strtolower($row['data_type'])];
+            $field['type'] = $field['ptype'];
+            $field['sql_type'] = $row['data_type'];
             $field['not_null'] = (strtolower($row['is_nullable']) != 'y');
             $field['pk'] = ($row['is_identity'] == 'P');
             $field['auto_incr'] = $row['is_seq'];
@@ -430,7 +441,7 @@ where col.table_name = '%s'
             }
             $field['desc'] = !empty($row['commentval']) ? $row['commentval'] : '';
             if (!is_null($row['default'])) {
-                switch ($field['ptype']) {
+                switch ($field['type']) {
                     case 'int1':
                     case 'int2':
                     case 'int3':
@@ -444,6 +455,11 @@ where col.table_name = '%s'
                         break;
                     case 'bool':
                         $field['default'] = (bool) $field['default'];
+                        break;
+                    case 'text':
+                        if (strtoupper($field['default']) == 'SYS_GUID()') {
+                            $field['default'] = '';
+                        }
                 }
             }
 

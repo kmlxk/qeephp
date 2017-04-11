@@ -210,7 +210,9 @@ class QDB_Table
                 }
                 else
                 {
-                    $insert_id[$pk] = $row[$pk];
+//                    if (!is_array($row[$pk])) {
+                        $insert_id[$pk] = $row[$pk];
+//                    }
                 }
             }
         }
