@@ -406,9 +406,8 @@ class Model_Behavior_AclUser extends QDB_ActiveRecord_Behavior_Abstract
 			{
 				$member->changePropForce($pv, $member[$pn]);
 			}
-            $ip = isset($data['login_at']) ?
-                  $data['login_at']
-                  : isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : '';
+            $ip = self::getIp();
+			QLog::log('$ip: ' . $ip);
             if (substr($this->_meta->props[$pn]['ptype'], 0, 3) == 'int')
             {
                 $ip = ip2long($ip);
@@ -521,7 +520,7 @@ class Model_Behavior_AclUser extends QDB_ActiveRecord_Behavior_Abstract
             $pn = $this->_settings['register_ip_prop'];
             if ($pn)
             {
-                $ip = isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : '';
+                $ip = self::getIp();
                 if (substr($this->_meta->props[$pn]['ptype'], 0, 3) == 'int')
                 {
                     $ip = ip2long($ip);
@@ -611,6 +610,37 @@ class Model_Behavior_AclUser extends QDB_ActiveRecord_Behavior_Abstract
         }
         if ($et == 'cleartext') return $password;
         return $et($password);
+    }
+    
+    
+    /**
+     * 获取IP地址
+     */
+    public static function getIp() {
+        static $ip = false;
+        if ($ip !== false)
+            return $ip;
+        foreach (array(
+    'HTTP_REMOTE_HOST',
+    'X-Real-IP',
+    'HTTP_X_FORWARDED_FOR',
+    'HTTP_X_FORWARDED',
+    'HTTP_FORWARDED_FOR',
+    'HTTP_FORWARDED',
+    'HTTP_CLIENT_IP',
+    'REMOTE_ADDR') as $key) {
+            if (!isset($_SERVER[$key]))
+                continue;
+            $value = $_SERVER[$key];
+            $sep = explode('.', $value);
+            if (count($sep) !== 4)
+                continue;
+			// QLog::log('getIp ' . $key);
+			// QLog::log(print_r($_SERVER, true));
+            return $ip = $value;
+        }
+        $ip = $_SERVER['REMOTE_ADDR'];
+        return $ip;
     }
 
 }
