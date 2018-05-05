@@ -40,13 +40,18 @@ class QDB_Adapter_Mysqli extends QDB_Adapter_Abstract
         $this->_last_err = null;
         $this->_last_err_code = null;
 
+        $host = $this->_dsn['host'];
         if (isset($this->_dsn['port']) && $this->_dsn['port'] != '')
         {
-            $host = $this->_dsn['host'] . ':' . $this->_dsn['port'];
+            $port = $this->_dsn['port'];
+        } else {
+            $port = 3306;  
         }
-        else
-        {
-            $host = $this->_dsn['host'];
+        // 对于linux系统mysqli_connect连接$host参数不能为 host:port的形式。$port需要单独给出
+        if (strpos($host, ':') > 0) {
+            $sep = explode(':', $host);
+            $port = intval($sep[1]);
+            $host = $sep[0];
         }
 
         if (! isset($this->_dsn['login']))
@@ -65,7 +70,7 @@ class QDB_Adapter_Mysqli extends QDB_Adapter_Abstract
         }
         else
         {
-            $this->_conn = mysqli_connect($host, $this->_dsn['login'], $this->_dsn['password'], $force_new);
+            $this->_conn = mysqli_connect($host, $this->_dsn['login'], $this->_dsn['password'], $this->_dsn['database'], $port);
         }
 
         if(!$this->_conn)
