@@ -125,6 +125,13 @@ class QDB_Adapter_Mysqli extends QDB_Adapter_Abstract
         }
         if (! ($value instanceof QDB_Expr))
         {
+            // 使用QDB::getConn->execute时，$this->_conn为空，需要重建连接才能使用 mysqli_real_escape_string
+            if (! $this->_conn)
+            {
+                $this->connect();
+            }
+            // dump("'" . mysqli_real_escape_string($this->_conn,$value) . "'");
+            // dump($this->_conn->real_escape_string($value));
             return "'" . mysqli_real_escape_string($this->_conn,$value) . "'";
         }
         return $value->formatToString($this);
