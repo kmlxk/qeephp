@@ -288,6 +288,7 @@ where t.rank between {$offset} and {$end}";
             'decimal' => 'dec',
             'dec' => 'dec',
             'date' => 'date',
+            'smalldatetime' => 'datetime',
             'datetime' => 'datetime',
             'timestamp' => 'timestamp',
             'time' => 'time',
@@ -312,7 +313,7 @@ where t.rank between {$offset} and {$end}";
         );
         $sql = sprintf("
 select
-     c.name as field,t.name + '('+ concat(COLUMNPROPERTY(c.id,c.name,'PRECISION'),')')  as type
+     c.name as field, t.name + '(' + cast(COLUMNPROPERTY(c.id,c.name,'PRECISION') as varchar) + ')'  as type
      ,convert(bit,c.IsNullable)  as [is_nullable]
      ,convert(bit,case when exists(select 1 from sysobjects where xtype='PK' and parent_obj=c.id and name in (
          select name from sysindexes where indid in(
@@ -408,7 +409,7 @@ where c.id = object_id('%s')", $table_name);
     }
 
     function metaTables($pattern = null, $schema = null) {
-        $sql = "SELECT Name FROM SysObjects Where XType='U' ";
+        $sql = "SELECT Name FROM SysObjects Where XType='U' order by name ";
         if ($schema != '') {
             $sql .= " FROM `{$schema}`";
         }
